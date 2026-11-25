@@ -35,6 +35,7 @@
     <string name="home_title">Minhas Partituras</string>
     <string name="content_description_settings">Configurações</string>
     <string name="content_description_select_folder">Selecionar pasta com partituras</string>
+    <string name="content_description_scan_score">Escanear partitura</string>
     <string name="display_status_disconnected">●  Nenhum display externo conectado</string>
     <string name="display_status_connected">●  Display externo conectado: %1$s</string>
     <string name="search_hint">Buscar partitura pelo nome...</string>
@@ -73,4 +74,24 @@
 
     <!-- Tela ociosa do display externo -->
     <string name="external_idle_message">Selecione uma partitura</string>
+
+    <!-- Scanner de partituras -->
+    <string name="scan_select_folder_first">Selecione uma pasta primeiro para salvar a partitura escaneada</string>
+    <string name="scan_write_permission_title">Permitir gravação na pasta</string>
+    <string name="scan_write_permission_message">Para salvar partituras escaneadas nesta pasta, selecione e confirme o acesso de gravação nela.</string>
+    <string name="scan_write_permission_action">Confirmar pasta</string>
+    <string name="scan_cancel">Cancelar</string>
+    <string name="scan_filename_hint">Nome do arquivo</string>
+    <string name="scan_filename_save">Salvar PDF</string>
+    <string name="scan_filename_empty">Digite um nome para o arquivo</string>
+    <string name="scan_default_filename_prefix">Partitura</string>
+    <string name="scan_preview_dialog_title">Salvar partitura escaneada</string>
+    <string name="scan_enhance_clean_toggle">Aprimorar partitura (pautas e contraste)</string>
+    <string name="scan_enhance_intensity">Intensidade: %1$d%%</string>
+    <string name="scan_page_count_label">Página 1 de %1$d</string>
+    <string name="scan_progress_title">Gerando PDF…</string>
+    <string name="scan_progress_page">Processando página %1$d de %2$d</string>
+    <string name="scan_success">Partitura salva: %1$s</string>
+    <string name="scan_error">Não foi possível gerar ou salvar o PDF</string>
+    <string name="scan_unavailable">Scanner indisponível neste aparelho</string>
 </resources>

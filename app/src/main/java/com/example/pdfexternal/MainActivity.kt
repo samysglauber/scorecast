@@ -1,5 +1,6 @@
 package com.example.pdfexternal
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -18,8 +19,11 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupMenu
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.animation.core.Animatable
@@ -50,6 +54,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.os.LocaleListCompat
 import androidx.core.view.doOnLayout
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -59,9 +64,16 @@ import org.json.JSONArray
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.slider.Slider
+import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import io.github.fletchmckee.liquid.liquefiable
 import io.github.fletchmckee.liquid.liquid
 import io.github.fletchmckee.liquid.rememberLiquidState
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
@@ -149,6 +161,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var tvDisplayStatus: TextView
     private lateinit var btnSelectFolder: ImageButton
+    private lateinit var btnScanScore: ImageButton
     private lateinit var btnSettings: ImageButton
     private lateinit var recyclerPdfs: RecyclerView
     private lateinit var layoutPageControls: LinearLayout
@@ -177,6 +190,8 @@ class MainActivity : AppCompatActivity() {
     private val activeSortOption: SortOption
         get() = if (showOnlyFavorites) setlistSortOption else allTabSortOption
     private var folderSelected = false
+    private var currentFolderUri: Uri? = null
+    private var pendingScanAfterFolderConfirm = false
     private var volumePagingEnabled = false
     private var pageTransitionMode = PageTransitionMode.CURL
     private var zoomCropPercent = 0
@@ -199,15 +214,42 @@ class MainActivity : AppCompatActivity() {
     private var favoriteOrder: MutableList<String> = mutableListOf()
 
     private val openFolderLauncher =
-        registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()) { uri ->
+        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
             if (uri != null) {
-                contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
+                val readWriteFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                try {
+                    contentResolver.takePersistableUriPermission(uri, readWriteFlags)
+                } catch (_: SecurityException) {
+                    contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                }
                 prefs.edit().putString(KEY_FOLDER_URI, uri.toString()).apply()
+                currentFolderUri = uri
                 folderSelected = true
                 loadPdfsFromTree(uri)
+
+                if (pendingScanAfterFolderConfirm) {
+                    pendingScanAfterFolderConfirm = false
+                    if (hasWritePermissionForFolder(uri)) {
+                        launchScoreScanner()
+                    }
+                }
+            } else {
+                pendingScanAfterFolderConfirm = false
+            }
+        }
+
+    private val scanScoreLauncher =
+        registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val scanResult = GmsDocumentScanningResult.fromActivityResultIntent(result.data)
+                val pageUris = scanResult?.pages?.map { it.imageUri }.orEmpty()
+                if (pageUris.isNotEmpty()) {
+                    showScanPreviewAndSaveDialog(pageUris)
+                }
             }
         }
 
@@ -329,6 +371,7 @@ class MainActivity : AppCompatActivity() {
 
         tvDisplayStatus = findViewById(R.id.tvDisplayStatus)
         btnSelectFolder = findViewById(R.id.btnSelectFolder)
+        btnScanScore = findViewById(R.id.btnScanScore)
         btnSettings = findViewById(R.id.btnSettings)
         recyclerPdfs = findViewById(R.id.recyclerPdfs)
         layoutPageControls = findViewById(R.id.layoutPageControls)
@@ -362,6 +405,7 @@ class MainActivity : AppCompatActivity() {
         setupSetlistDragAndDrop()
 
         btnSelectFolder.setOnClickListener { openFolderLauncher.launch(null) }
+        btnScanScore.setOnClickListener { startScanScoreFlow() }
         btnSettings.setOnClickListener { showSettingsDialog() }
         btnPrevPage.setOnClickListener { currentPresentation?.prevPage(); syncPageIndicator() }
         btnNextPage.setOnClickListener { currentPresentation?.nextPage(); syncPageIndicator() }
@@ -584,10 +628,333 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (stillGranted) {
+            currentFolderUri = savedUri
             folderSelected = true
             loadPdfsFromTree(savedUri)
         } else {
             prefs.edit().remove(KEY_FOLDER_URI).apply()
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Scanner de partituras por foto aprimorada
+    // ---------------------------------------------------------------------
+
+    private fun hasWritePermissionForFolder(uri: Uri): Boolean {
+        return contentResolver.persistedUriPermissions.any {
+            it.uri == uri && it.isReadPermission && it.isWritePermission
+        }
+    }
+
+    private fun startScanScoreFlow() {
+        val folderUri = currentFolderUri
+        if (folderUri == null) {
+            Toast.makeText(this, getString(R.string.scan_select_folder_first), Toast.LENGTH_LONG).show()
+            pendingScanAfterFolderConfirm = true
+            openFolderLauncher.launch(null)
+            return
+        }
+
+        if (!hasWritePermissionForFolder(folderUri)) {
+            MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_PdfExternal_RoundedDialog)
+                .setTitle(R.string.scan_write_permission_title)
+                .setMessage(R.string.scan_write_permission_message)
+                .setPositiveButton(R.string.scan_write_permission_action) { _, _ ->
+                    pendingScanAfterFolderConfirm = true
+                    openFolderLauncher.launch(folderUri)
+                }
+                .setNegativeButton(R.string.scan_cancel, null)
+                .show()
+            return
+        }
+
+        launchScoreScanner()
+    }
+
+    private fun launchScoreScanner() {
+        val options = GmsDocumentScannerOptions.Builder()
+            .setGalleryImportAllowed(true)
+            .setPageLimit(50)
+            .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
+            .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
+            .build()
+
+        GmsDocumentScanning.getClient(options)
+            .getStartScanIntent(this)
+            .addOnSuccessListener { intentSender ->
+                try {
+                    val request = IntentSenderRequest.Builder(intentSender).build()
+                    scanScoreLauncher.launch(request)
+                } catch (e: Exception) {
+                    android.util.Log.e("PdfExternalDisplay", "Falha ao abrir scanner", e)
+                    Toast.makeText(this, getString(R.string.scan_unavailable), Toast.LENGTH_LONG).show()
+                }
+            }
+            .addOnFailureListener { e ->
+                android.util.Log.e("PdfExternalDisplay", "Scanner indisponível", e)
+                Toast.makeText(this, getString(R.string.scan_unavailable), Toast.LENGTH_LONG).show()
+            }
+    }
+
+    private fun showScanPreviewAndSaveDialog(pageUris: List<Uri>) {
+        val density = resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).toInt()
+
+        val timestamp = SimpleDateFormat("yyyy-MM-dd HH-mm", Locale.getDefault()).format(Date())
+        val defaultName = "${getString(R.string.scan_default_filename_prefix)} $timestamp"
+
+        var selectedMode = ScorePhotoEnhancer.EnhanceMode.ORIGINAL
+        var intensityPercent = ScorePhotoEnhancer.DEFAULT_INTENSITY
+        var previewJob: kotlinx.coroutines.Job? = null
+        var previewBitmap: android.graphics.Bitmap? = null
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), dp(4))
+        }
+
+        val filenameInput = EditText(this).apply {
+            setText(defaultName)
+            setSelection(0, defaultName.length)
+            hint = getString(R.string.scan_filename_hint)
+            setSingleLine()
+            setTextColor(getColor(R.color.text_primary))
+            setHintTextColor(getColor(R.color.text_secondary))
+        }
+        container.addView(filenameInput)
+
+        val toggleRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(2), dp(12), dp(2), dp(8))
+        }
+        val toggleLabel = TextView(this).apply {
+            text = getString(R.string.scan_enhance_clean_toggle)
+            setTextColor(getColor(R.color.text_primary))
+            textSize = 14f
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val enhanceSwitch = SimpleSwitch(this).apply {
+            isChecked = false
+        }
+        toggleRow.addView(toggleLabel)
+        toggleRow.addView(enhanceSwitch)
+        toggleRow.setOnClickListener { enhanceSwitch.toggle() }
+        container.addView(toggleRow)
+
+        val intensityContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+            setPadding(dp(2), 0, dp(2), dp(6))
+        }
+        val intensityLabel = TextView(this).apply {
+            text = getString(R.string.scan_enhance_intensity, intensityPercent)
+            setTextColor(getColor(R.color.text_secondary))
+            textSize = 12f
+        }
+        val intensitySlider = Slider(material3WidgetContext()).apply {
+            valueFrom = 10f
+            valueTo = 100f
+            stepSize = 5f
+            value = intensityPercent.toFloat()
+            val primaryColor = getColor(R.color.primary)
+            trackActiveTintList = android.content.res.ColorStateList.valueOf(primaryColor)
+            trackInactiveTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.surface_variant))
+            thumbTintList = android.content.res.ColorStateList.valueOf(primaryColor)
+            haloTintList = android.content.res.ColorStateList.valueOf(primaryColor)
+            tickActiveTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT)
+            tickInactiveTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT)
+        }
+        intensityContainer.addView(intensityLabel)
+        intensityContainer.addView(intensitySlider)
+        container.addView(intensityContainer)
+
+        val previewImage = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setBackgroundColor(android.graphics.Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(290)
+            ).apply { topMargin = dp(4) }
+        }
+        container.addView(previewImage)
+
+        if (pageUris.size > 1) {
+            container.addView(TextView(this).apply {
+                text = getString(R.string.scan_page_count_label, pageUris.size)
+                setTextColor(getColor(R.color.text_secondary))
+                textSize = 12f
+                gravity = android.view.Gravity.CENTER
+                setPadding(0, dp(6), 0, 0)
+            })
+        }
+
+        val scrollWrapper = android.widget.ScrollView(this).apply {
+            addView(container)
+        }
+
+        val dialog = MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_PdfExternal_RoundedDialog)
+            .setTitle(R.string.scan_preview_dialog_title)
+            .setView(scrollWrapper)
+            .setPositiveButton(R.string.scan_filename_save, null)
+            .setNegativeButton(R.string.scan_cancel, null)
+            .create()
+
+        fun refreshPreview(mode: ScorePhotoEnhancer.EnhanceMode, intensity: Int, debounceMs: Long = 0L) {
+            previewJob?.cancel()
+            previewJob = lifecycleScope.launch {
+                if (debounceMs > 0L) {
+                    kotlinx.coroutines.delay(debounceMs)
+                }
+                try {
+                    val bmp = ScorePhotoEnhancer.renderPreviewBitmap(
+                        context = this@MainActivity,
+                        uri = pageUris.first(),
+                        mode = mode,
+                        intensityPercent = intensity
+                    )
+                    val previous = previewBitmap
+                    previewBitmap = bmp
+                    previewImage.setImageBitmap(bmp)
+                    if (previous != null && previous !== bmp && !previous.isRecycled) {
+                        previous.recycle()
+                    }
+                } catch (e: Exception) {
+                    if (e !is kotlinx.coroutines.CancellationException) {
+                        android.util.Log.e("PdfExternalDisplay", "Falha ao gerar prévia", e)
+                    }
+                }
+            }
+        }
+
+        enhanceSwitch.setOnCheckedChangeListener { checked ->
+            selectedMode = if (checked) {
+                ScorePhotoEnhancer.EnhanceMode.CLEAN_SCORE
+            } else {
+                ScorePhotoEnhancer.EnhanceMode.ORIGINAL
+            }
+            intensityContainer.visibility = if (checked) View.VISIBLE else View.GONE
+            refreshPreview(selectedMode, intensityPercent)
+        }
+
+        intensitySlider.addOnChangeListener { _, value, fromUser ->
+            intensityPercent = value.toInt()
+            intensityLabel.text = getString(R.string.scan_enhance_intensity, intensityPercent)
+            if (fromUser && selectedMode == ScorePhotoEnhancer.EnhanceMode.CLEAN_SCORE) {
+                refreshPreview(selectedMode, intensityPercent, debounceMs = 120L)
+            }
+        }
+
+        dialog.setOnDismissListener {
+            previewJob?.cancel()
+            previewImage.setImageDrawable(null)
+            previewBitmap?.takeIf { !it.isRecycled }?.recycle()
+            previewBitmap = null
+        }
+
+        dialog.setOnShowListener {
+            dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE).setOnClickListener {
+                val rawName = filenameInput.text.toString().trim()
+                if (rawName.isEmpty()) {
+                    filenameInput.error = getString(R.string.scan_filename_empty)
+                    return@setOnClickListener
+                }
+                val finalName = if (rawName.endsWith(".pdf", ignoreCase = true)) rawName else "$rawName.pdf"
+                dialog.dismiss()
+                saveEnhancedPagesAsPdf(pageUris, selectedMode, intensityPercent, finalName)
+            }
+        }
+
+        dialog.show()
+        refreshPreview(selectedMode, intensityPercent)
+    }
+
+    private fun saveEnhancedPagesAsPdf(
+        pageUris: List<Uri>,
+        mode: ScorePhotoEnhancer.EnhanceMode,
+        intensityPercent: Int,
+        fileName: String
+    ) {
+        val folderUri = currentFolderUri ?: return
+        val density = resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).toInt()
+
+        val progressLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(24), dp(20), dp(24), dp(20))
+        }
+        progressLayout.addView(ProgressBar(this).apply { isIndeterminate = true })
+        val progressText = TextView(this).apply {
+            text = getString(R.string.scan_progress_page, 1, pageUris.size)
+            setTextColor(getColor(R.color.text_primary))
+            textSize = 14f
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { marginStart = dp(16) }
+        }
+        progressLayout.addView(progressText)
+
+        val progressDialog = MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_PdfExternal_RoundedDialog)
+            .setTitle(R.string.scan_progress_title)
+            .setView(progressLayout)
+            .setCancelable(false)
+            .create()
+        progressDialog.show()
+
+        lifecycleScope.launch {
+            try {
+                val parentDocUri = DocumentsContract.buildDocumentUriUsingTree(
+                    folderUri,
+                    DocumentsContract.getTreeDocumentId(folderUri)
+                )
+                val createdUri = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    DocumentsContract.createDocument(
+                        contentResolver,
+                        parentDocUri,
+                        "application/pdf",
+                        fileName
+                    )
+                } ?: throw IllegalStateException("createDocument retornou null")
+
+                try {
+                    val stream = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        contentResolver.openOutputStream(createdUri)
+                    } ?: throw IllegalStateException("openOutputStream retornou null")
+
+                    stream.use { outputStream ->
+                        ScorePhotoEnhancer.buildPdfFromScannedPages(
+                            context = this@MainActivity,
+                            pageUris = pageUris,
+                            mode = mode,
+                            intensityPercent = intensityPercent,
+                            outputStream = outputStream
+                        ) { currentPage, totalPages ->
+                            progressText.text = getString(R.string.scan_progress_page, currentPage, totalPages)
+                        }
+                    }
+                } catch (e: Exception) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        try {
+                            DocumentsContract.deleteDocument(contentResolver, createdUri)
+                        } catch (_: Exception) {}
+                    }
+                    throw e
+                }
+
+                progressDialog.dismiss()
+                loadPdfsFromTree(folderUri)
+                Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.scan_success, fileName),
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (e: Exception) {
+                android.util.Log.e("PdfExternalDisplay", "Erro ao gerar/salvar PDF da partitura", e)
+                progressDialog.dismiss()
+                Toast.makeText(this@MainActivity, getString(R.string.scan_error), Toast.LENGTH_LONG).show()
+            }
         }
     }
 

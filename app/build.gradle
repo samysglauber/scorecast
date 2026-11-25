@@ -62,4 +62,8 @@ dependencies {
     // Efeito de vidro líquido (glassmorphism com shader de GPU real) - usado no
     // diálogo de configurações. Exige Android 13+ (RuntimeShader).
     implementation("io.github.fletchmckee.liquid:liquid:1.1.1")
+
+    // Scanner de documentos (câmera + recorte + correção de perspectiva sem pedir
+    // permissão de câmera manualmente) - usado para digitalizar partituras físicas.
+    implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
 }
