@@ -71,4 +71,4 @@ cd scorecast
 
 ## 📄 Licença
 
-Este projeto está sob a licença [MIT](LICENSE) (ou a licença de sua preferência).
+Este projeto está sob a licença [MIT](LICENSE).
