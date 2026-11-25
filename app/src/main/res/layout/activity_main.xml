@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/rootContainer"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:paddingStart="20dp"
+    android:paddingEnd="20dp"
+    android:paddingTop="20dp"
+    android:paddingBottom="12dp">
+
+    <!-- Coluna principal: cabeçalho, busca, abas e lista - ocupa a tela toda por
+         trás da barra de página, que fica fixa embaixo (ver layoutPageControls). -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+    <!-- Cabeçalho: título + botão discreto de selecionar pasta -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/home_title"
+            android:textColor="@color/text_primary"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <ImageButton
+            android:id="@+id/btnSettings"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/bg_icon_button"
+            android:contentDescription="@string/content_description_settings"
+            android:padding="10dp"
+            android:src="@drawable/ic_settings"
+            app:tint="@color/text_secondary" />
+
+        <ImageButton
+            android:id="@+id/btnSelectFolder"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:background="@drawable/bg_icon_button"
+            android:contentDescription="@string/content_description_select_folder"
+            android:padding="10dp"
+            android:src="@drawable/ic_folder"
+            app:tint="@color/primary" />
+
+    </LinearLayout>
+
+    <!-- Chip de status do display externo -->
+    <TextView
+        android:id="@+id/tvDisplayStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_chip_disconnected"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:paddingTop="7dp"
+        android:paddingBottom="7dp"
+        android:text="@string/display_status_disconnected"
+        android:textColor="@color/text_secondary"
+        android:textSize="13sp" />
+
+    <!-- Campo de busca -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/bg_search_field"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_search"
+            app:tint="@color/text_secondary" />
+
+        <EditText
+            android:id="@+id/etSearch"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:background="@android:color/transparent"
+            android:hint="@string/search_hint_short"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:maxLines="1"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_secondary"
+            android:textSize="15sp" />
+
+    </LinearLayout>
+
+    <!-- Abas: Todos / Favoritos -->
+    <FrameLayout
+        android:id="@+id/tabTrack"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginTop="14dp"
+        android:background="@drawable/bg_tab_track"
+        android:padding="3dp">
+
+        <!-- Indicador que desliza por trás do label ativo (ver updateTabSelection em
+             MainActivity) - a largura real é definida em código, igual à de cada aba. -->
+        <View
+            android:id="@+id/tabIndicator"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:background="@drawable/bg_tab_selected" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tabAll"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="@string/tab_all"
+                android:textColor="@color/primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tabFavorites"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="@string/tab_favorites"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+    <!-- Ordenar por -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:id="@+id/tvResultCount"
+            android:text=""
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <LinearLayout
+            android:id="@+id/btnSort"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_icon_button_flat"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_sort"
+                app:tint="@color/text_secondary" />
+
+            <TextView
+                android:id="@+id/tvSortLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/sort_label_name"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="16dp"
+                android:layout_marginStart="10dp"
+                android:layout_marginEnd="10dp"
+                android:background="@color/text_secondary"
+                android:alpha="0.4" />
+
+            <ImageView
+                android:id="@+id/ivSortArrow"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:src="@drawable/ic_arrow_down"
+                app:tint="@color/text_secondary" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Lista de PDFs -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerPdfs"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="10dp"
+        android:clipToPadding="false"
+        android:paddingBottom="96dp" />
+
+    <!-- Estado vazio -->
+    <LinearLayout
+        android:id="@+id/layoutEmptyState"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:alpha="0.35"
+            android:src="@drawable/ic_folder"
+            app:tint="@color/text_secondary" />
+
+        <TextView
+            android:id="@+id/tvEmptyStateMessage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center"
+            android:text="@string/empty_state_select_folder"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+    </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Barra de página fixa embaixo da tela: indicador + avançar/retroceder, com o
+         botão de fechar no canto inferior direito, ao lado do "avançar" (em vez de
+         embaixo dele, como era antes). -->
+    <LinearLayout
+        android:id="@+id/layoutPageControls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="@color/background"
+        android:orientation="vertical"
+        android:paddingTop="10dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvPageIndicator"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:gravity="center"
+            android:text="0 / 0"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <ImageButton
+                    android:id="@+id/btnPrevPage"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:layout_marginEnd="20dp"
+                    android:background="@drawable/bg_page_button_circle_solid"
+                    android:contentDescription="@string/content_description_prev_page"
+                    android:padding="16dp"
+                    android:src="@drawable/ic_chevron_left"
+                    app:tint="@color/page_button_icon" />
+
+                <ImageButton
+                    android:id="@+id/btnNextPage"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="@drawable/bg_page_button_circle_solid"
+                    android:contentDescription="@string/content_description_next_page"
+                    android:padding="16dp"
+                    android:src="@drawable/ic_chevron_right"
+                    app:tint="@color/page_button_icon" />
+
+            </LinearLayout>
+
+            <ImageButton
+                android:id="@+id/btnQuickZoom"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_gravity="start|center_vertical"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/content_description_quick_zoom"
+                android:padding="8dp"
+                android:src="@drawable/ic_zoom"
+                app:tint="@color/text_secondary" />
+
+            <ImageButton
+                android:id="@+id/btnClosePdf"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_gravity="end|center_vertical"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/content_description_close_pdf"
+                android:padding="8dp"
+                android:src="@drawable/ic_close"
+                app:tint="@color/text_secondary" />
+
+        </FrameLayout>
+
+    </LinearLayout>
+
+</FrameLayout>

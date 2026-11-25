@@ -1,0 +1,36 @@
+<resources>
+    <color name="ic_launcher_background">#3DB8E9</color>
+
+    <!-- Paleta principal (ajustada para contraste AMOLED) -->
+    <color name="primary">#5DC4ED</color>
+    <color name="primary_container">#123340</color>
+    <color name="on_primary">#000000</color>
+
+    <!-- Superfícies: preto puro no fundo (AMOLED), cards levemente elevados -->
+    <color name="background">#000000</color>
+    <color name="surface">#0D0D0F</color>
+    <color name="surface_variant">#18181C</color>
+    <!-- Versão translúcida da superfície, usada no diálogo de configurações com
+         efeito de vidro (glassmorphism) sobre o blur do conteúdo atrás dele -->
+    <color name="surface_glass">#D9161619</color>
+
+    <!-- Texto -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#9A9AA8</color>
+
+    <!-- Estados -->
+    <color name="success">#4ADE94</color>
+    <color name="success_container">#123321</color>
+    <color name="ripple_on_surface">#40FFFFFF</color>
+    <color name="danger">#FF6B6B</color>
+    <color name="switch_track_off">#4B4B52</color>
+    <color name="page_button_solid">#18181D</color>
+    <color name="page_button_icon">#FFFFFF</color>
+
+    <!-- No escuro o trilho desligado já é bem mais escuro que o branco puro da
+         bolinha, então o contorno pode ser bem mais discreto ainda. -->
+    <color name="switch_thumb_outline">#14000000</color>
+
+    <color name="favorite_star">#FFC24D</color>
+</resources>
+

@@ -1,0 +1,65 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
+}
+
+android {
+    namespace = "com.example.pdfexternal"
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = "com.example.pdfexternal"
+        minSdk = 33
+        targetSdk = 36
+        versionCode = 1
+        versionName = "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    buildFeatures {
+        compose true
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation("androidx.coordinatorlayout:coordinatorlayout:1.2.0")
+
+    // Jetpack Compose - necessário para a biblioteca de efeito de virar página (pagecurl)
+    implementation(platform("androidx.compose:compose-bom:2026.01.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
+
+    // Componentes de ciclo de vida - necessários para hospedar Compose dentro de uma
+    // janela Presentation (que não é uma Activity e não os fornece automaticamente)
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.3")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.3")
+    implementation("androidx.savedstate:savedstate-ktx:1.2.1")
+
+    // Efeito de virar página com curvatura 3D real (Jetpack Compose)
+    implementation("io.github.oleksandrbalan:pagecurl:1.5.1")
+
+    // Efeito de vidro líquido (glassmorphism com shader de GPU real) - usado no
+    // diálogo de configurações. Exige Android 13+ (RuntimeShader).
+    implementation("io.github.fletchmckee.liquid:liquid:1.1.1")
+}

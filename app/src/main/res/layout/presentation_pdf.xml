@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- presentationWindow: topo REAL da janela, nunca gira - preenche sempre a tela
+     física inteira, para nunca sobrar um "vazado" preto quando presentationRoot for
+     rotacionado 90° (ver PdfPresentation.applyDisplayRotation). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/presentationWindow"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- presentationRoot: conteúdo "lógico" (tela ociosa + PDF). É este container que
+         é girado 90° e redimensionado quando o display físico é landscape, para
+         aproveitar a tela toda na vertical (como uma partitura pede). -->
+    <FrameLayout
+        android:id="@+id/presentationRoot"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#000000">
+
+        <!-- Estado ocioso: nenhum PDF selecionado ainda -->
+        <LinearLayout
+            android:id="@+id/layoutIdle"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ImageView
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:alpha="0.4"
+                android:src="@drawable/ic_pdf_large"
+                app:tint="#FFFFFF" />
+
+            <TextView
+                android:id="@+id/tvIdleMessage"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:alpha="0.65"
+                android:gravity="center"
+                android:text="@string/external_idle_message"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp" />
+
+        </LinearLayout>
+
+        <!-- Página do PDF com efeito de curvatura 3D real (biblioteca pagecurl / Jetpack Compose) -->
+        <androidx.compose.ui.platform.ComposeView
+            android:id="@+id/composePageCurl"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+</FrameLayout>

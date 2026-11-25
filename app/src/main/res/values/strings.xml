@@ -1,0 +1,73 @@
+<resources>
+    <string name="app_name">ScoreCast</string>
+
+    <string name="settings_back_description">Voltar</string>
+    <string name="settings_title">Configurações</string>
+
+    <string name="section_appearance">APARÊNCIA</string>
+    <string name="setting_dark_theme_title">Tema escuro</string>
+    <string name="setting_dark_theme_desc">Usa cores escuras em toda a tela do celular</string>
+    <string name="setting_language_title">Idioma</string>
+    <string name="setting_language_desc">Idioma usado nos textos do aplicativo</string>
+    <string name="language_dialog_title">Idioma</string>
+    <string name="language_option_system">Sistema</string>
+    <string name="language_option_pt">Português</string>
+    <string name="language_option_en">English</string>
+
+    <string name="section_reading">LEITURA</string>
+    <string name="setting_zoom_title">Zoom / crop da página</string>
+    <string name="setting_zoom_desc">Remove um pouco da margem e amplia a página no display externo</string>
+    <string name="setting_quick_zoom_title">Zoom rápido</string>
+    <string name="setting_quick_zoom_desc">Quanto o botão de zoom rápido amplia ao ser tocado</string>
+    <string name="setting_invert_rotation_title">Inverter rotação</string>
+    <string name="setting_invert_rotation_desc">Ajuste caso o texto apareça de cabeça para baixo em displays montados na horizontal</string>
+
+    <string name="section_page_turn">VIRAR PÁGINA</string>
+    <string name="setting_volume_title">Botões de volume</string>
+    <string name="setting_volume_desc">Usa os botões físicos de volume do celular para virar a página</string>
+    <string name="setting_curl_title">Transição de página</string>
+    <string name="setting_curl_desc">Efeito usado ao virar de página no display externo</string>
+    <string name="page_transition_none">Nenhuma</string>
+    <string name="page_transition_slide">Deslizar</string>
+    <string name="page_transition_curl">Virar página</string>
+
+    <!-- Tela principal -->
+    <string name="home_title">Minhas Partituras</string>
+    <string name="content_description_settings">Configurações</string>
+    <string name="content_description_select_folder">Selecionar pasta com partituras</string>
+    <string name="display_status_disconnected">●  Nenhum display externo conectado</string>
+    <string name="display_status_connected">●  Display externo conectado: %1$s</string>
+    <string name="search_hint">Buscar partitura pelo nome...</string>
+    <string name="search_hint_short">Buscar partitura...</string>
+    <string name="tab_all">Todos</string>
+    <string name="tab_favorites">Set list</string>
+
+    <string name="sort_label_name">Nome</string>
+    <string name="sort_label_date">Data</string>
+    <string name="sort_option_name_asc">Nome (A-Z)</string>
+    <string name="sort_option_name_desc">Nome (Z-A)</string>
+    <string name="sort_option_newest">Mais recente primeiro</string>
+    <string name="sort_option_oldest">Mais antigo primeiro</string>
+
+    <string name="empty_state_select_folder">Selecione uma pasta para ver suas partituras</string>
+    <string name="empty_state_no_pdfs">Nenhuma partitura encontrada nessa pasta</string>
+    <string name="empty_state_no_favorites">Sua set list está vazia</string>
+    <string name="empty_state_no_search_results">Nenhuma partitura corresponde à busca</string>
+    <string name="toast_connect_external_display">Conecte um display externo (cabo, dock ou tela sem fio) primeiro</string>
+
+    <string name="content_description_prev_page">Página anterior</string>
+    <string name="content_description_next_page">Próxima página</string>
+    <string name="content_description_close_pdf">Fechar partitura no display</string>
+    <string name="content_description_quick_zoom">Zoom rápido</string>
+
+    <string name="result_count_singular">1 partitura encontrada</string>
+    <string name="result_count_plural">%1$d partituras encontradas</string>
+
+    <string name="pdf_meta_with_date">Partitura · %1$s</string>
+    <string name="pdf_meta_plain">Partitura</string>
+    <string name="favorite_add_description">Adicionar à set list</string>
+    <string name="favorite_remove_description">Remover da set list</string>
+
+    <!-- Tela ociosa do display externo -->
+    <string name="external_idle_message">Selecione uma partitura</string>
+</resources>

@@ -1,0 +1,32 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.PdfExternal" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary</item>
+        <item name="colorAccent">@color/primary</item>
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="ThemeOverlay.PdfExternal.RoundedDialog" parent="ThemeOverlay.MaterialComponents.MaterialAlertDialog">
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearanceOverlay.PdfExternal.Dialog</item>
+        <item name="colorSurface">@color/surface_glass</item>
+        <item name="colorPrimary">@color/primary</item>
+        <item name="android:windowMinWidthMajor">85%</item>
+        <item name="android:windowMinWidthMinor">85%</item>
+    </style>
+
+    <style name="ShapeAppearanceOverlay.PdfExternal.Dialog" parent="">
+        <item name="cornerSize">28dp</item>
+    </style>
+
+    <!-- Ver comentário na versão "values/themes.xml" - aqui usamos o baseline escuro
+         do Material 3 como fallback para os atributos que faltam no tema base. -->
+    <style name="ThemeOverlay.PdfExternal.Material3Widgets" parent="ThemeOverlay.Material3.Dark">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorOnPrimary">@color/on_primary</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
+    </style>
+</resources>

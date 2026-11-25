@@ -1,0 +1,39 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.PdfExternal" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary</item>
+        <item name="colorAccent">@color/primary</item>
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <!-- Diálogo com cantos bem arredondados (estilo One UI) para as telas de configuração.
+         colorSurface translúcida (surface_glass) + blur do conteúdo atrás (ver
+         showSettingsDialog em MainActivity) cria o efeito de vidro/glassmorphism. -->
+    <style name="ThemeOverlay.PdfExternal.RoundedDialog" parent="ThemeOverlay.MaterialComponents.MaterialAlertDialog">
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearanceOverlay.PdfExternal.Dialog</item>
+        <item name="colorSurface">@color/surface_glass</item>
+        <item name="colorPrimary">@color/primary</item>
+        <item name="android:windowMinWidthMajor">85%</item>
+        <item name="android:windowMinWidthMinor">85%</item>
+    </style>
+
+    <style name="ShapeAppearanceOverlay.PdfExternal.Dialog" parent="">
+        <item name="cornerSize">28dp</item>
+    </style>
+
+    <!-- Fornece os atributos de cor do Material 3 (colorOutline,
+         colorSurfaceContainerHighest, colorOnSurfaceVariant etc.) exigidos por
+         widgets M3 como MaterialSwitch e Slider. O tema base do app é Material 2
+         (Theme.MaterialComponents) e não define esses atributos - sem este overlay,
+         esses widgets derrubam o app assim que são construídos. -->
+    <style name="ThemeOverlay.PdfExternal.Material3Widgets" parent="ThemeOverlay.Material3.Light">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorOnPrimary">@color/on_primary</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
+    </style>
+</resources>
+
