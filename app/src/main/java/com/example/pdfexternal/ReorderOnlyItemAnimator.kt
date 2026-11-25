@@ -32,10 +32,18 @@ class ReorderOnlyItemAnimator : DefaultItemAnimator() {
         moveDuration = 340L
     }
 
-    private data class PendingMove(val holder: RecyclerView.ViewHolder)
+    private data class PendingMove(
+        val holder: RecyclerView.ViewHolder,
+        val isChange: Boolean = false
+    )
 
     private val pendingMoves = mutableListOf<PendingMove>()
-    private val activeMoves = mutableSetOf<RecyclerView.ViewHolder>()
+    private val activeMoves = mutableMapOf<RecyclerView.ViewHolder, Boolean>()
+
+    override fun canReuseUpdatedViewHolder(
+        viewHolder: RecyclerView.ViewHolder,
+        payloads: MutableList<Any>
+    ): Boolean = payloads.isNotEmpty() || super.canReuseUpdatedViewHolder(viewHolder, payloads)
 
     override fun animateAdd(holder: RecyclerView.ViewHolder): Boolean {
         dispatchAddFinished(holder)
@@ -45,6 +53,30 @@ class ReorderOnlyItemAnimator : DefaultItemAnimator() {
     override fun animateRemove(holder: RecyclerView.ViewHolder): Boolean {
         dispatchRemoveFinished(holder)
         return false
+    }
+
+    override fun animateChange(
+        oldHolder: RecyclerView.ViewHolder,
+        newHolder: RecyclerView.ViewHolder,
+        fromLeft: Int,
+        fromTop: Int,
+        toLeft: Int,
+        toTop: Int
+    ): Boolean {
+        if (oldHolder === newHolder) {
+            val deltaX = (toLeft - fromLeft).toFloat()
+            val deltaY = (toTop - fromTop).toFloat()
+            if (deltaX == 0f && deltaY == 0f) {
+                dispatchChangeFinished(oldHolder, true)
+                return false
+            }
+            val view = oldHolder.itemView
+            view.translationX = -deltaX
+            view.translationY = -deltaY
+            pendingMoves.add(PendingMove(oldHolder, isChange = true))
+            return true
+        }
+        return super.animateChange(oldHolder, newHolder, fromLeft, fromTop, toLeft, toTop)
     }
 
     override fun animateMove(
@@ -67,7 +99,7 @@ class ReorderOnlyItemAnimator : DefaultItemAnimator() {
         // de verdade começa em runPendingAnimations(), não aqui.
         view.translationX = -deltaX
         view.translationY = -deltaY
-        pendingMoves.add(PendingMove(holder))
+        pendingMoves.add(PendingMove(holder, isChange = false))
         return true
     }
 
@@ -76,16 +108,20 @@ class ReorderOnlyItemAnimator : DefaultItemAnimator() {
             val moves = ArrayList(pendingMoves)
             pendingMoves.clear()
             for (move in moves) {
-                startMoveAnimation(move.holder)
+                startMoveAnimation(move.holder, move.isChange)
             }
         }
         super.runPendingAnimations()
     }
 
-    private fun startMoveAnimation(holder: RecyclerView.ViewHolder) {
+    private fun startMoveAnimation(holder: RecyclerView.ViewHolder, isChange: Boolean) {
         val view = holder.itemView
-        activeMoves.add(holder)
-        dispatchMoveStarting(holder)
+        activeMoves[holder] = isChange
+        if (isChange) {
+            dispatchChangeStarting(holder, true)
+        } else {
+            dispatchMoveStarting(holder)
+        }
 
         view.animate()
             .translationX(0f)
@@ -96,7 +132,11 @@ class ReorderOnlyItemAnimator : DefaultItemAnimator() {
                 override fun onAnimationEnd(animation: Animator) {
                     view.animate().setListener(null)
                     activeMoves.remove(holder)
-                    dispatchMoveFinished(holder)
+                    if (isChange) {
+                        dispatchChangeFinished(holder, true)
+                    } else {
+                        dispatchMoveFinished(holder)
+                    }
                 }
 
                 override fun onAnimationCancel(animation: Animator) {
@@ -116,12 +156,18 @@ class ReorderOnlyItemAnimator : DefaultItemAnimator() {
         // troca de aba (Favoritos -> Todos). O resultado era um item parado com o
         // alpha "pela metade", de forma imprevisível dependendo do timing exato entre
         // as duas animações - exatamente o "às vezes aparece, geralmente não".
+        val removedPending = pendingMoves.filter { it.holder == item }
         val hadPendingMove = pendingMoves.removeAll { it.holder == item }
-        val hadActiveMove = activeMoves.remove(item)
-        val wasTracked = hadPendingMove || hadActiveMove
+        val activeChange = activeMoves.remove(item)
+        val wasTracked = hadPendingMove || activeChange != null
         if (wasTracked) {
             item.itemView.animate().cancel()
-            dispatchMoveFinished(item)
+            val wasChange = (activeChange == true) || removedPending.any { it.isChange }
+            if (wasChange) {
+                dispatchChangeFinished(item, true)
+            } else {
+                dispatchMoveFinished(item)
+            }
         }
         super.endAnimation(item)
     }

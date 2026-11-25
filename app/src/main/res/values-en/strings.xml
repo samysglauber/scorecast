@@ -44,6 +44,8 @@
 
     <string name="sort_label_name">Name</string>
     <string name="sort_label_date">Date</string>
+    <string name="sort_label_setlist">Order</string>
+    <string name="sort_option_setlist">Set list order</string>
     <string name="sort_option_name_asc">Name (A-Z)</string>
     <string name="sort_option_name_desc">Name (Z-A)</string>
     <string name="sort_option_newest">Newest first</string>
@@ -67,6 +69,7 @@
     <string name="pdf_meta_plain">Sheet music</string>
     <string name="favorite_add_description">Add to set list</string>
     <string name="favorite_remove_description">Remove from set list</string>
+    <string name="drag_handle_description">Reorder song in set list</string>
 
     <!-- External display idle screen -->
     <string name="external_idle_message">Select sheet music</string>

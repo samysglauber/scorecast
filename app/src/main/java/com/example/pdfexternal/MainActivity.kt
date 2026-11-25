@@ -52,8 +52,10 @@ import androidx.core.os.LocaleListCompat
 import androidx.core.view.doOnLayout
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import org.json.JSONArray
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.slider.Slider
@@ -73,6 +75,7 @@ class MainActivity : AppCompatActivity() {
         @androidx.annotation.StringRes val shortLabelRes: Int,
         val ascending: Boolean
     ) {
+        SETLIST_ORDER(R.string.sort_option_setlist, R.string.sort_label_setlist, true),
         NAME_ASC(R.string.sort_option_name_asc, R.string.sort_label_name, true),
         NAME_DESC(R.string.sort_option_name_desc, R.string.sort_label_name, false),
         NEWEST_FIRST(R.string.sort_option_newest, R.string.sort_label_date, false),
@@ -92,6 +95,7 @@ class MainActivity : AppCompatActivity() {
         private const val MAX_QUICK_ZOOM_PERCENT = 10
         private const val DEFAULT_QUICK_ZOOM_PERCENT = 5
         private const val KEY_FAVORITE_URIS = "favorite_pdf_uris"
+        private const val KEY_SETLIST_ORDER = "setlist_order_json"
         // Espera de "silêncio" antes de reconstruir a lista após favoritar/
         // desfavoritar - um pouco mais longa que a duração da animação de
         // reposicionamento (ReorderOnlyItemAnimator.moveDuration = 340ms), pra
@@ -157,6 +161,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etSearch: EditText
     private lateinit var btnSort: LinearLayout
     private lateinit var tvSortLabel: TextView
+    private lateinit var sortDivider: View
     private lateinit var ivSortArrow: ImageView
     private lateinit var tvResultCount: TextView
     private lateinit var tabAll: TextView
@@ -164,9 +169,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tabIndicator: View
 
     private lateinit var adapter: PdfListAdapter
+    private lateinit var itemTouchHelper: ItemTouchHelper
     private var allPdfs: List<PdfItem> = emptyList()
     private var searchQuery: String = ""
-    private var sortOption: SortOption = SortOption.NAME_ASC
+    private var allTabSortOption: SortOption = SortOption.NAME_ASC
+    private var setlistSortOption: SortOption = SortOption.SETLIST_ORDER
+    private val activeSortOption: SortOption
+        get() = if (showOnlyFavorites) setlistSortOption else allTabSortOption
     private var folderSelected = false
     private var volumePagingEnabled = false
     private var pageTransitionMode = PageTransitionMode.CURL
@@ -184,10 +193,10 @@ class MainActivity : AppCompatActivity() {
     private var activeSettingsDialog: android.app.Dialog? = null
     private var showOnlyFavorites = false
 
-    // Carregado uma vez em onCreate; toda alteração (toggleFavorite) mexe direto
-    // aqui E persiste em seguida - não existe recarregar a pasta pra refletir isso,
-    // já que favoritos são independentes do escaneamento de arquivos.
-    private var favoriteUris: MutableSet<String> = mutableSetOf()
+    // Carregado uma vez em onCreate; toda alteração (toggleFavorite / reordenação)
+    // mexe direto aqui E persiste em seguida - preserva exatamente a sequência (1, 2, 3...)
+    // da set list.
+    private var favoriteOrder: MutableList<String> = mutableListOf()
 
     private val openFolderLauncher =
         registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -257,9 +266,7 @@ class MainActivity : AppCompatActivity() {
         invertExternalRotation = prefs.getBoolean(KEY_INVERT_EXTERNAL_ROTATION, false)
         quickZoomMaxPercent = prefs.getInt(KEY_QUICK_ZOOM_MAX_PERCENT, DEFAULT_QUICK_ZOOM_PERCENT)
             .coerceIn(1, MAX_QUICK_ZOOM_PERCENT)
-        // Cópia defensiva: o Set devolvido por getStringSet não deve ser mutado
-        // diretamente (é a mesma instância interna da SharedPreferences).
-        favoriteUris = HashSet(prefs.getStringSet(KEY_FAVORITE_URIS, emptySet()) ?: emptySet())
+        loadFavoriteOrder()
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
 
         bindViewsAndListeners()
@@ -335,6 +342,7 @@ class MainActivity : AppCompatActivity() {
         etSearch = findViewById(R.id.etSearch)
         btnSort = findViewById(R.id.btnSort)
         tvSortLabel = findViewById(R.id.tvSortLabel)
+        sortDivider = findViewById(R.id.sortDivider)
         ivSortArrow = findViewById(R.id.ivSortArrow)
         tvResultCount = findViewById(R.id.tvResultCount)
         tabAll = findViewById(R.id.tabAll)
@@ -344,11 +352,14 @@ class MainActivity : AppCompatActivity() {
         adapter = PdfListAdapter(
             onClick = { pdfItem -> openPdfOnExternalDisplay(pdfItem) },
             onToggleFavorite = { pdfItem -> toggleFavorite(pdfItem) },
-            isShowingFavoritesOnly = { showOnlyFavorites }
+            isShowingFavoritesOnly = { showOnlyFavorites },
+            canReorder = { canReorderSetlist() },
+            onStartDrag = { holder -> itemTouchHelper.startDrag(holder) }
         )
         recyclerPdfs.layoutManager = LinearLayoutManager(this)
         recyclerPdfs.adapter = adapter
         recyclerPdfs.itemAnimator = ReorderOnlyItemAnimator()
+        setupSetlistDragAndDrop()
 
         btnSelectFolder.setOnClickListener { openFolderLauncher.launch(null) }
         btnSettings.setOnClickListener { showSettingsDialog() }
@@ -368,6 +379,7 @@ class MainActivity : AppCompatActivity() {
             if (showOnlyFavorites) {
                 showOnlyFavorites = false
                 updateTabSelection(animate = true)
+                updateSortLabel()
                 refreshList()
             }
         }
@@ -375,6 +387,7 @@ class MainActivity : AppCompatActivity() {
             if (!showOnlyFavorites) {
                 showOnlyFavorites = true
                 updateTabSelection(animate = true)
+                updateSortLabel()
                 refreshList()
             }
         }
@@ -662,18 +675,103 @@ class MainActivity : AppCompatActivity() {
     // Busca e ordenação
     // ---------------------------------------------------------------------
 
+    private fun canReorderSetlist(): Boolean =
+        showOnlyFavorites && setlistSortOption == SortOption.SETLIST_ORDER && searchQuery.isBlank()
+
+    private fun setupSetlistDragAndDrop() {
+        val touchCallback = object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN,
+            0
+        ) {
+            private var draggedFromPos = RecyclerView.NO_POSITION
+
+            override fun isLongPressDragEnabled(): Boolean = canReorderSetlist()
+
+            override fun isItemViewSwipeEnabled(): Boolean = false
+
+            override fun getDragDirs(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder
+            ): Int = if (canReorderSetlist()) super.getDragDirs(recyclerView, viewHolder) else 0
+
+            override fun onMove(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                target: RecyclerView.ViewHolder
+            ): Boolean {
+                if (!canReorderSetlist()) return false
+                val fromPos = viewHolder.bindingAdapterPosition
+                val toPos = target.bindingAdapterPosition
+                val movedPair = adapter.onItemMove(fromPos, toPos) ?: return false
+                moveSetlistItem(movedPair.first, movedPair.second)
+                return true
+            }
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {}
+
+            override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
+                super.onSelectedChanged(viewHolder, actionState)
+                if (actionState == ItemTouchHelper.ACTION_STATE_DRAG && viewHolder != null) {
+                    draggedFromPos = viewHolder.bindingAdapterPosition
+                    viewHolder.itemView.animate()
+                        .scaleX(1.02f)
+                        .scaleY(1.02f)
+                        .alpha(0.92f)
+                        .translationZ(dpToPx(6f))
+                        .setDuration(120L)
+                        .start()
+                }
+            }
+
+            override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+                super.clearView(recyclerView, viewHolder)
+                viewHolder.itemView.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .alpha(1f)
+                    .translationZ(0f)
+                    .setDuration(150L)
+                    .start()
+                if (draggedFromPos != RecyclerView.NO_POSITION) {
+                    draggedFromPos = RecyclerView.NO_POSITION
+                    saveFavoriteOrder()
+                }
+            }
+        }
+        itemTouchHelper = ItemTouchHelper(touchCallback)
+        itemTouchHelper.attachToRecyclerView(recyclerPdfs)
+    }
+
     private fun updateSortLabel() {
-        tvSortLabel.text = getString(sortOption.shortLabelRes)
-        ivSortArrow.rotation = if (sortOption.ascending) 0f else 180f
+        val currentSort = activeSortOption
+        tvSortLabel.text = getString(currentSort.shortLabelRes)
+        if (currentSort == SortOption.SETLIST_ORDER) {
+            sortDivider.visibility = View.GONE
+            ivSortArrow.visibility = View.GONE
+        } else {
+            sortDivider.visibility = View.VISIBLE
+            ivSortArrow.visibility = View.VISIBLE
+            ivSortArrow.rotation = if (currentSort.ascending) 0f else 180f
+        }
     }
 
     private fun showSortMenu() {
         val popup = PopupMenu(this, btnSort)
-        SortOption.values().forEachIndexed { index, option ->
+        val availableOptions = if (showOnlyFavorites) {
+            SortOption.values().toList()
+        } else {
+            SortOption.values().filter { it != SortOption.SETLIST_ORDER }
+        }
+        availableOptions.forEachIndexed { index, option ->
             popup.menu.add(0, index, index, getString(option.menuLabelRes))
         }
         popup.setOnMenuItemClickListener { menuItem ->
-            sortOption = SortOption.values()[menuItem.itemId]
+            val chosen = availableOptions[menuItem.itemId]
+            if (showOnlyFavorites) {
+                setlistSortOption = chosen
+            } else {
+                allTabSortOption = chosen
+            }
             updateSortLabel()
             refreshList()
             true
@@ -723,8 +821,60 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Carrega a ordem salva da set list (com migração automática do formato legado em Set). */
+    private fun loadFavoriteOrder() {
+        val savedJson = prefs.getString(KEY_SETLIST_ORDER, null)
+        if (savedJson != null) {
+            val list = mutableListOf<String>()
+            try {
+                val array = JSONArray(savedJson)
+                for (i in 0 until array.length()) {
+                    val uriStr = array.optString(i, "")
+                    if (uriStr.isNotEmpty() && uriStr !in list) {
+                        list.add(uriStr)
+                    }
+                }
+            } catch (_: Exception) {
+                // Ignora JSON inválido e tenta fallback para chave legada
+            }
+            favoriteOrder = list
+            return
+        }
+
+        val legacySet = prefs.getStringSet(KEY_FAVORITE_URIS, emptySet()) ?: emptySet()
+        favoriteOrder = legacySet.sorted().toMutableList()
+        if (favoriteOrder.isNotEmpty()) {
+            saveFavoriteOrder()
+        }
+    }
+
+    private fun saveFavoriteOrder() {
+        val json = JSONArray(favoriteOrder).toString()
+        prefs.edit().putString(KEY_SETLIST_ORDER, json).apply()
+    }
+
+    private fun moveSetlistItem(movedUri: Uri, targetUri: Uri) {
+        val fromIndex = favoriteOrder.indexOf(movedUri.toString())
+        val toIndex = favoriteOrder.indexOf(targetUri.toString())
+        if (fromIndex == -1 || toIndex == -1 || fromIndex == toIndex) return
+        val moved = favoriteOrder.removeAt(fromIndex)
+        favoriteOrder.add(toIndex, moved)
+    }
+
     /** Aplica busca + aba (todos/favoritos) + ordenação sobre a lista completa e atualiza a tela. */
     private fun refreshList(replayEntranceAnimation: Boolean = true) {
+        // Mapa de URI -> posição 1-based considerando apenas os itens da set list que
+        // existem na pasta atual, garantindo sequência contínua (1, 2, 3...) na tela.
+        val currentFolderUris = allPdfs.map { it.uri.toString() }.toHashSet()
+        val setlistPosByUri = HashMap<String, Int>()
+        var seq = 1
+        for (uriStr in favoriteOrder) {
+            if (uriStr in currentFolderUris) {
+                setlistPosByUri[uriStr] = seq++
+            }
+        }
+        val favoriteSet = favoriteOrder.toHashSet()
+
         var result = allPdfs
 
         if (searchQuery.isNotBlank()) {
@@ -732,20 +882,26 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (showOnlyFavorites) {
-            result = result.filter { it.uri.toString() in favoriteUris }
+            result = result.filter { it.uri.toString() in favoriteSet }
         }
 
-        result = when (sortOption) {
+        result = when (activeSortOption) {
+            SortOption.SETLIST_ORDER -> result.sortedBy { setlistPosByUri[it.uri.toString()] ?: Int.MAX_VALUE }
             SortOption.NAME_ASC -> result.sortedBy { it.name.lowercase() }
             SortOption.NAME_DESC -> result.sortedByDescending { it.name.lowercase() }
             SortOption.NEWEST_FIRST -> result.sortedByDescending { it.lastModified }
             SortOption.OLDEST_FIRST -> result.sortedBy { it.lastModified }
         }
 
-        // O estado de favorito é persistido à parte (não faz parte do escaneamento da
-        // pasta) - aplicado aqui, na hora de montar a lista final, para refletir
-        // imediatamente qualquer toque na estrela sem precisar reler a pasta.
-        result = result.map { it.copy(isFavorite = it.uri.toString() in favoriteUris) }
+        // O estado de favorito e a posição na set list são persistidos à parte (não fazem
+        // parte do escaneamento da pasta) - aplicados aqui na hora de montar a lista final.
+        result = result.map { item ->
+            val uriStr = item.uri.toString()
+            item.copy(
+                isFavorite = uriStr in favoriteSet,
+                setlistPosition = if (showOnlyFavorites) setlistPosByUri[uriStr] else null
+            )
+        }
 
         adapter.submitList(result, replayEntranceAnimation)
 
@@ -764,12 +920,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun toggleFavorite(item: PdfItem) {
         val key = item.uri.toString()
-        if (!favoriteUris.remove(key)) {
-            favoriteUris.add(key)
+        if (!favoriteOrder.remove(key)) {
+            favoriteOrder.add(key)
         }
-        // Cópia defensiva na escrita também - evita qualquer risco de o Set mutar
-        // de novo (outro toque) antes do apply() terminar de serializar.
-        prefs.edit().putStringSet(KEY_FAVORITE_URIS, HashSet(favoriteUris)).apply()
+        saveFavoriteOrder()
 
         // A reconstrução da lista (o que dispara a animação de reorganização) espera
         // um curto instante de "silêncio" antes de rodar de verdade. Se o usuário

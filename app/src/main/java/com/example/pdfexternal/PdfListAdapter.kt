@@ -3,9 +3,11 @@ package com.example.pdfexternal
 import android.animation.ObjectAnimator
 import android.animation.PropertyValuesHolder
 import android.animation.Keyframe
+import android.annotation.SuppressLint
 import android.content.res.ColorStateList
 import android.net.Uri
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
@@ -20,14 +22,17 @@ data class PdfItem(
     val name: String,
     val uri: Uri,
     val lastModified: Long,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val setlistPosition: Int? = null
 )
 
 class PdfListAdapter(
     private val items: MutableList<PdfItem> = mutableListOf(),
     private val onClick: (PdfItem) -> Unit,
     private val onToggleFavorite: (PdfItem) -> Unit,
-    private val isShowingFavoritesOnly: () -> Boolean = { false }
+    private val isShowingFavoritesOnly: () -> Boolean = { false },
+    private val canReorder: () -> Boolean = { false },
+    private val onStartDrag: (RecyclerView.ViewHolder) -> Unit = {}
 ) : RecyclerView.Adapter<PdfListAdapter.PdfViewHolder>() {
 
     // Locale.getDefault() (em vez de um Locale("pt","BR") fixo) para o formato da
@@ -51,12 +56,46 @@ class PdfListAdapter(
         // "buraco" perceptível descrito antes.
         const val CASCADE_VISIBLE_ITEM_COUNT_PORTRAIT = 6
         const val CASCADE_VISIBLE_ITEM_COUNT_LANDSCAPE = 4
+        const val PAYLOAD_SETLIST_ORDER = "payload_setlist_order"
     }
 
     class PdfViewHolder(view: android.view.View) : RecyclerView.ViewHolder(view) {
+        val iconPdf: ImageView = view.findViewById(R.id.ivPdfIcon)
+        val setlistOrder: TextView = view.findViewById(R.id.tvSetlistOrder)
         val name: TextView = view.findViewById(R.id.tvPdfName)
         val meta: TextView = view.findViewById(R.id.tvPdfMeta)
         val favorite: ImageView = view.findViewById(R.id.btnFavorite)
+        val dragHandle: ImageView = view.findViewById(R.id.btnDragHandle)
+    }
+
+    /**
+     * Move um item de [fromPosition] para [toPosition] durante o drag-and-drop da set list,
+     * atualizando em tempo real a numeração (1, 2, 3...) dos itens afetados.
+     * Retorna o par (uriMovido, uriDestino) antes da remoção para sincronizar a lista persistida.
+     */
+    fun onItemMove(fromPosition: Int, toPosition: Int): Pair<Uri, Uri>? {
+        if (fromPosition !in items.indices || toPosition !in items.indices || fromPosition == toPosition) {
+            return null
+        }
+
+        val targetUri = items[toPosition].uri
+        val movedItem = items.removeAt(fromPosition)
+        items.add(toPosition, movedItem)
+
+        val start = minOf(fromPosition, toPosition)
+        val end = maxOf(fromPosition, toPosition)
+        for (i in start..end) {
+            animatedPositions.add(i)
+            if (items[i].setlistPosition != null) {
+                items[i] = items[i].copy(setlistPosition = i + 1)
+            }
+        }
+
+        notifyItemMoved(fromPosition, toPosition)
+        for (i in start..end) {
+            notifyItemChanged(i, PAYLOAD_SETLIST_ORDER)
+        }
+        return movedItem.uri to targetUri
     }
 
     fun submitList(newItems: List<PdfItem>, replayEntranceAnimation: Boolean = true) {
@@ -83,6 +122,18 @@ class PdfListAdapter(
                 oldItems[oldItemPosition].uri == newItems[newItemPosition].uri
             override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int) =
                 oldItems[oldItemPosition] == newItems[newItemPosition]
+            override fun getChangePayload(oldItemPosition: Int, newItemPosition: Int): Any? {
+                val oldItem = oldItems[oldItemPosition]
+                val newItem = newItems[newItemPosition]
+                if (oldItem.name == newItem.name &&
+                    oldItem.lastModified == newItem.lastModified &&
+                    oldItem.isFavorite == newItem.isFavorite &&
+                    oldItem.setlistPosition != newItem.setlistPosition
+                ) {
+                    return PAYLOAD_SETLIST_ORDER
+                }
+                return null
+            }
         }
         val diffResult = androidx.recyclerview.widget.DiffUtil.calculateDiff(diffCallback)
         items.clear()
@@ -139,6 +190,15 @@ class PdfListAdapter(
         }
     }
 
+    override fun onBindViewHolder(holder: PdfViewHolder, position: Int, payloads: MutableList<Any>) {
+        if (payloads.contains(PAYLOAD_SETLIST_ORDER)) {
+            bindOrderAndHandle(holder, items[position])
+            return
+        }
+        super.onBindViewHolder(holder, position, payloads)
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
     override fun onBindViewHolder(holder: PdfViewHolder, position: Int) {
         val item = items[position]
         holder.name.text = item.name
@@ -148,6 +208,16 @@ class PdfListAdapter(
             holder.itemView.context.getString(R.string.pdf_meta_plain)
         }
         applyFavoriteIcon(holder.favorite, item.isFavorite)
+        bindOrderAndHandle(holder, item)
+
+        holder.dragHandle.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_DOWN && canReorder()) {
+                onStartDrag(holder)
+                true
+            } else {
+                false
+            }
+        }
 
         // Clique próprio para não abrir o PDF (e sem ripple do próprio item por cima)
         // quando o usuário só quer favoritar.
@@ -343,6 +413,19 @@ class PdfListAdapter(
             start.run()
         }
         view.postDelayed(safetyNet, delay + duration + 150L)
+    }
+
+    private fun bindOrderAndHandle(holder: PdfViewHolder, item: PdfItem) {
+        val pos = item.setlistPosition
+        if (pos != null) {
+            holder.iconPdf.visibility = View.GONE
+            holder.setlistOrder.visibility = View.VISIBLE
+            holder.setlistOrder.text = pos.toString()
+        } else {
+            holder.iconPdf.visibility = View.VISIBLE
+            holder.setlistOrder.visibility = View.GONE
+        }
+        holder.dragHandle.visibility = if (canReorder()) View.VISIBLE else View.GONE
     }
 
     private fun applyFavoriteIcon(view: ImageView, isFavorite: Boolean) {

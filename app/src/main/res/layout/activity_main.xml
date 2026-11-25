@@ -198,6 +198,7 @@
                 android:textStyle="bold" />
 
             <View
+                android:id="@+id/sortDivider"
                 android:layout_width="1dp"
                 android:layout_height="16dp"
                 android:layout_marginStart="10dp"
